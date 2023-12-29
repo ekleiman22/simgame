@@ -31,7 +31,7 @@ canvas.addEventListener('click', handleCanvasClick);
 $('input[name="radTurn"]').on('click change', function (e) {
     //console.log(e.target.value);
     if (gameIsOver) {
-        //endGameHandler();
+       
         return;
     }
     currentPlayer = e.target.value; //1- you, 2 - computer
@@ -46,7 +46,7 @@ $('input[name="radTurn"]').on('click change', function (e) {
 
 function handleCanvasClick(event) {
     if (gameIsOver) {
-        //endGameHandler();
+        
         return;
     }
     if (!gameStarted) {
@@ -72,7 +72,7 @@ function handleCanvasClick(event) {
 
 function getClickedEdge(mouseX, mouseY) {
     if (gameIsOver) {
-        //endGameHandler();
+        
         return;
     }
     for (let i = 0; i < edges.length; i++) {
@@ -108,6 +108,8 @@ function getClickedEdge(mouseX, mouseY) {
   
 
 function drawColoredLine(edge) {
+    if (gameIsOver)
+        return;
     ctx.beginPath();
     ctx.strokeStyle = playerColors[currentPlayer-1];
     ctx.lineWidth = 2;
@@ -199,9 +201,8 @@ function drawInitialSetup() {
 }
 function addRowToProtocol(edgeIndex) {
     var txt = $("#txtProtocol").val();
-    //let newrow = "\n|" + (movesCount+1) + "|" + currentPlayer + "|"
-    //    + edgeColors[edgeIndex] + "|"
-    //    + "[" + edges[edgeIndex][0] + "," + edges[edgeIndex][1] + "]";
+    if (gameIsOver)
+        return;
     let s1 = centerString((movesCount + 1)+""," # ");
     let s2 = centerString(currentPlayer + "", " Player ");
     let s3 = centerString(edgeColors[edgeIndex], " Color ");
@@ -304,6 +305,8 @@ function startGame() {
     }
 }
 function makeComputerMove() {
+    if (gameIsOver)
+        return;
     let compColor = playerColors[currentPlayer-1];
     
     let ind = randomSearchNonMomochomaticTriangle(compColor);
