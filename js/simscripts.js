@@ -26,6 +26,9 @@ let currentPlayer = 1;//at the beginning
     var edgeColors =[];
 var gameIsOver = false;
 var gameStarted = false;
+var protocolSerialized = "";
+var gameProtocol = []; //array of steps;
+    
 canvas.addEventListener('click', handleCanvasClick);
 //define first player and current player at the beginning of the game
 $('input[name="radTurn"]').on('click change', function (e) {
@@ -118,6 +121,7 @@ function drawColoredLine(edge) {
     ctx.stroke();
     edgeColors[edge] = playerColors[currentPlayer - 1];
     addRowToProtocol(edge);
+    addRowToMemoryProtocol(edge);
     if (checkMonochromeTriangle(edge, edgeColors[edge])) {
         endGameHandler();
     }
@@ -142,6 +146,7 @@ function updatePlayerTurnDisplay() {
   
 function drawAllEdges() {
     ctx.beginPath();
+    ctx.strokeStyle = 'black';
     let edgesIndex = -1;
     for (let i = 0; i < points.length; i++) {        
         for (var j = i + 1; j < points.length; j++) {
@@ -210,53 +215,56 @@ function addRowToProtocol(edgeIndex) {
         centerString("[" + edges[edgeIndex][0] + "," + edges[edgeIndex][1] + "]", " Edge");
     let newrow = "\n" + s1 + "|" + s2 + "|" + s3 + "|" + s4;
     $("#txtProtocol").val(txt + newrow);
+    
+}
+function addRowToMemoryProtocol(edgeIndex) {
+    let sep = ",";
+    let row = (movesCount + 1) + sep + currentPlayer + sep + edgeColors[edgeIndex] +
+        sep + edges[edgeIndex][0] + sep + edges[edgeIndex][1] + "\r\n";
+    protocolSerialized += row;
+    //Now as object
+    let step = {};
+    step.moveCount = movesCount ;
+    step.player = currentPlayer;
+    step.color = edgeColors[edgeIndex];
+    step.edgeIndex = edgeIndex;
+    step.edge = edges[edgeIndex];
+    gameProtocol.push(step);
 }
 
-//Given an edge and a color this function checks all triangles containing this edge
-// and teturn true if found one havibg all edges of the same color
-function checkMonochromeTriangle(edgeIndex,color) {
-    let result = false;   
-    let p = edges[edgeIndex][0];
-    let q = edges[edgeIndex][1];
-    
-    for (var i = 0; i < edges.length; i++) {
-        if (i == edgeIndex || edgeColors[i] != color)
-            continue;
+function getNeighbours(vertex, color) {
+    let result = [];//vertices connected to this vertex
+    // with edge the same color
+    for (var i = 0; i <edges.length; i++) {
         let edge = edges[i];
-        //found the second edge the same color connected to the given on
-        //so we need to take its not common vertices and check if
-        // the edge connected these vertices is of the same color
-        let notCommonVertex = q;
-        let thirdEdgeIndex = -1;
-        if (edge[0] == p )  {
-            notCommonVertex = edge[1];
-            thirdEdgeIndex = getEdgeIndexByVertices(q, notCommonVertex)
-        }
-        if (edge[0] == q) {
-            notCommonVertex = edge[1];
-            thirdEdgeIndex = getEdgeIndexByVertices(p, notCommonVertex)
-        }
-        if (edge[1] == p) {
-            notCommonVertex = edge[0];
-            thirdEdgeIndex = getEdgeIndexByVertices(q, notCommonVertex)
-        }
-        if (edge[1] == q) {
-            notCommonVertex = edge[0];
-            thirdEdgeIndex = getEdgeIndexByVertices(p, notCommonVertex)
-        }
-        if (thirdEdgeIndex >= 0) {
-            if (edgeColors[thirdEdgeIndex] == color) {
-                result = true;
-            }
+        if (edgeColors[i] == color) {
+            if (edge[0] == vertex)
+                result.push(edge[1]);
             else
-                result = false;
-            break;
+                if (edge[1] == vertex)
+                    result.push(edge[0]);
         }
-        
-
     }
     return result;
 }
+//Given an edge and a color this function checks all triangles containing this edge
+// and teturn true if found one havibg all edges of the same color
+function checkMonochromeTriangle(edgeIndex, color) {
+    let result = false;    
+    let p = edges[edgeIndex][0];
+    let q = edges[edgeIndex][1];
+    let pn = getNeighbours(p, color);
+    let qn = getNeighbours(q, color);
+    //Find intersection of 2 arrays
+    var filteredArray = pn.filter(function (n) {
+        return qn.indexOf(n) !== -1;
+    });
+    result = filteredArray.length > 0;
+    return result;
+}
+
+
+
 function getEdgeIndexByVertices(p, q) {
     let result = 0;
     let m = Math.min(p, q);
@@ -315,6 +323,13 @@ function makeComputerMove() {
         switchPlayer();
     }
     else {
+        //find any black edge,draw icolor line on it and end
+        for (var i = 0; i < edges.length; i++) {
+            if (edgeColors[i] == 'black') {
+                drawColoredLine(i);
+                break;
+            }
+        }
         endGameHandler();
     }
 
@@ -332,13 +347,97 @@ function endGameHandler()
 {
     gameIsOver = true;
     clearTimeout(myTimeout);
-    alert("Game is over!");
+    //alert("Game is over!");
     let winner = "";
     if (currentPlayerName == playerNames[0])
         winner = playerNames[1];
     else
         winner = playerNames[0];
-    alert(winner +" win.")
+    alert("Game is over, "+winner +" win.")
 }
+function readProtocol(input) {
+    let file = input.files[0];
+    let fileReader = new FileReader();
+    let txt = "";
+    fileReader.readAsText(file);
+    fileReader.onload = function () {
+        //alert(fileReader.result);
+        let text = fileReader.result;
+        let arr = text.split("\r\n");
+        buildGameProtocol(arr)
+    };
+    fileReader.onerror = function () {       
+        alert(fileReader.error);        
+    };
+
+}
+function buildGameProtocol(arr) {
+    //alert("buildGameProtocol")
+    let sep = "|";
+    //don't take header
+    for (var i = 2; i < arr.length; i++) {       
+        let row = arr[i].split(sep);
+        let step = {};
+        step.moveCount = parseInt( row[0]);
+        step.player = parseInt(row[1]);
+        step.color = row[2].trim();
+        let s = row[3];
+        s = s.substr(1, s.length - 2);
+        step.edge = s.split(",");
+        step.edge[0] = parseInt(step.edge[0]);
+        step.edge[1] = parseInt(step.edge[1]);
+        //find edge index
+        let edgeIndex = 0;
+        for (var j = 0; j < edges.length; j++) {
+            if (edges[j][0] == step.edge[0] && edges[j][1] == step.edge[1]) {
+                edgeIndex = j;
+                break;
+            }
+        }
+        step.edgeIndex = edgeIndex;        
+        gameProtocol.push(step);
+    }
+}
+function reproduceGame() {
+    gameIsOver = false;
+    gameStarted = true;   
+   
+    currentPlayer = 1;
+    edgeColors = [];
+    drawInitialSetup();
+    movesCount = 0;
+    alert("Begin by click on Next")
+}
+function nextStep() {
+    let step = gameProtocol[movesCount];
+    if (movesCount < gameProtocol.length) {
+        drawLineByStep(step);
+    }
+    else {
+        $("#btnNext").prop("disabled", true);
+        $("#btnReproduce").prop("disabled", true);
+    }
+    movesCount++;
+}
+function drawLineByStep(step) {
+    let player = step.player;
+    let color = step.color;
+    let edge = step.edge;
+    let edgeIndex = step.edgeIndex;
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.moveTo(points[edge[0]].x, points[edge[0]].y);
+    ctx.lineTo(points[edge[1]].x, points[edge[1]].y);
+    ctx.stroke();
+    edgeColors[edgeIndex] = color;
+    currentPlayer = player;
+    addRowToProtocol(edgeIndex);
+    if (checkMonochromeTriangle(edgeIndex, color)) {
+        alert("Found Monochrome Triangle")
+    }
+    
+}
+
 
     drawInitialSetup();
